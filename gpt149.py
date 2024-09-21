@@ -5,14 +5,16 @@ import random
 import inspect
 from dataclasses import dataclass
 import sys, getopt
+print(3)
 from os import getcwd, path
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from torch.utils.cpp_extension import load
 from torch.profiler import profile, record_function, ProfilerActivity
+print(4)
 import module_ref as ms
-
+print("1")
 NUM_THREADS=8
 torch.set_num_threads(NUM_THREADS)
 
@@ -20,7 +22,7 @@ ispc_path = getcwd() + "/module_ispc.o"
 if not path.exists(ispc_path): ispc_path = ""
 
 print("\nCompiling code into a PyTorch module...\n\n")
-mr = load(name="custom_module", sources=["module.cpp"],  extra_cflags=["-mavx", "-O3", "-fopenmp"], extra_ldflags=[ispc_path])
+mr = load(name="custom_module", sources=["module.cpp"],  extra_cflags=["-mavx","-O3", "-fopenmp"], extra_ldflags=[ispc_path])
 correctness_error_message = "\n-------------------------------------------\n YOUR ATTENTION PRODUCED INCORRECT RESULTS"
 
 class CustomAttention(nn.Module):
@@ -314,4 +316,5 @@ def main():
 
         
 if __name__ == "__main__":
+    print(2)
     main()
