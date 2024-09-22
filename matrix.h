@@ -1,0 +1,1 @@
+void matrix_mul_cuda(float* x, float * y, float* z, int m, int n, int l);

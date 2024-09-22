@@ -20,9 +20,13 @@ torch.set_num_threads(NUM_THREADS)
 
 ispc_path = getcwd() + "/module_ispc.o"
 if not path.exists(ispc_path): ispc_path = ""
+cuda_path = getcwd() + "/matrix.o"
+if not path.exists(cuda_path): cuda_path = ""
+print(cuda_path)
+# nvcc -c matrix.cu -o matrix.o -O3 -arch=sm_50 -Xcompiler -fPIC
 
 print("\nCompiling code into a PyTorch module...\n\n")
-mr = load(name="custom_module", sources=["module.cpp"],  extra_cflags=["-mavx","-O3", "-fopenmp"], extra_ldflags=[ispc_path])
+mr = load(name="custom_module", sources=["module.cpp"],  extra_cflags=["-mavx","-O3",  "-fopenmp ", " -fPIC"], extra_ldflags=[cuda_path,ispc_path])
 correctness_error_message = "\n-------------------------------------------\n YOUR ATTENTION PRODUCED INCORRECT RESULTS"
 
 class CustomAttention(nn.Module):

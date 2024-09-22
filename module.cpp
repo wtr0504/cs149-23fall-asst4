@@ -13,6 +13,7 @@
 #include "module_ispc.h"
 using namespace ispc;
 
+void matrix_mul_cuda(float* x, float * y, float* z, int m, int n, int l);
 // ------------------------------------ //
 // 	WARM-UP: ACCESSING TENSORS      //
 // ------------------------------------ //
@@ -428,6 +429,12 @@ void MM2d(std::vector<float> &A, bool transA, std::vector<float> &B, bool transB
                 float val = twoDimRead(C, i, j, N) + A[a_index] * B[b_index];
                 twoDimWrite(C, i, j, N, val);
             }
+    // std::cout<<"cpu : ";
+    // int j = 0;
+    // for(int i = 0; i < 10; i++) {
+    //     std::cout << twoDimRead(C,j,i,N) << " ";
+    // }
+    // std::cout<<""<<std::endl;
 }
 // ---------------------------------------------------------- //
 //                PART 4: FLASH ATTENTION 		      //
@@ -554,7 +561,7 @@ torch::Tensor myFlashAttention(torch::Tensor QTensor, torch::Tensor KTensor, tor
     std::vector<float> V = formatTensor(VTensor);
     std::cout<<"b:"<<B<<"h:"<<H<<"N:"<<N<<"d:"<<d<<std::endl;
     // -------- YOUR CODE HERE  -------- //
-#pragma omp parallel for collapse(3)
+// #pragma omp parallel for collapse(3)
     for (int b = 0; b < B; b++) {
         for (int h = 0; h < H; h++) {
             for (int i0 = 0; i0 < N; i0+=Br) {
@@ -585,12 +592,13 @@ torch::Tensor myFlashAttention(torch::Tensor QTensor, torch::Tensor KTensor, tor
                     std::vector<float> lnew = formatTensor(LnewTensor); // (Br)
                     
                     // Sij = QiKj_T
-                    // MM2d_v(Qi.data(), /*transA=*/false, 
-                    //        Kj.data(), /*transB=*/true, 
-                    //        Sij.data(), _Br, _Bc, d);
-                    MM2d(Qi, /*transA=*/false, 
-                           Kj, /*transB=*/true, 
-                           Sij, _Br, _Bc, d);
+                    MM2d_v(Qi.data(), /*transA=*/false, 
+                           Kj.data(), /*transB=*/true, 
+                           Sij.data(), _Br, _Bc, d);
+                    // MM2d(Qi, /*transA=*/false, 
+                    //        Kj, /*transB=*/true, 
+                    //        Sij, _Br, _Bc, d);
+                    // matrix_mul_cuda(Qi.data(),Kj.data(),Sij.data(), _Br, _Bc, d)
 
                     // Pij = exp(Sij)
                     for (int ir = 0; ir < _Br; ir++)
@@ -626,9 +634,17 @@ torch::Tensor myFlashAttention(torch::Tensor QTensor, torch::Tensor KTensor, tor
                     //        Vj.data(), /*transB=*/false, 
                     //        Oi.data(), _Br, d, _Bc);
 
-                    MM2d(Pij, /*transA=*/false, 
-                        Vj, /*transB=*/false, 
-                        Oi, _Br, d, _Bc);
+                    // MM2d(Pij, /*transA=*/false, 
+                    //     Vj, /*transB=*/false, 
+                    //     Oi, _Br, d, _Bc);
+                    // std::cout<<"cuda X: ";
+
+                    // for(int i = 0; i < 10; i++) {
+                    //     std::cout << Pij[i] << " ";
+                    // }
+                    // std::cout<<""<<std::endl;
+
+                    matrix_mul_cuda(Pij.data(),Vj.data(),Oi.data(),_Br, d, _Bc);
                     
                     for (int ir = 0; ir < _Br; ir++)
                         for (int j = 0; j < d; j++) {
