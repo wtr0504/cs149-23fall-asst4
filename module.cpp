@@ -14,6 +14,8 @@
 using namespace ispc;
 
 void matrix_mul_cuda(float* x, float * y, float* z, int m, int n, int l);
+void trans01_matrix_mul_cuda(float* x, float * y, float* z, int m, int n, int l);
+void general_mul_cuda(float* x,bool transX, float * y,bool transY, float* z, int m, int n, int l);
 // ------------------------------------ //
 // 	WARM-UP: ACCESSING TENSORS      //
 // ------------------------------------ //
@@ -592,13 +594,15 @@ torch::Tensor myFlashAttention(torch::Tensor QTensor, torch::Tensor KTensor, tor
                     std::vector<float> lnew = formatTensor(LnewTensor); // (Br)
                     
                     // Sij = QiKj_T
-                    MM2d_v(Qi.data(), /*transA=*/false, 
-                           Kj.data(), /*transB=*/true, 
-                           Sij.data(), _Br, _Bc, d);
+                    // MM2d_v(Qi.data(), /*transA=*/false, 
+                    //        Kj.data(), /*transB=*/true, 
+                    //        Sij.data(), _Br, _Bc, d);
                     // MM2d(Qi, /*transA=*/false, 
                     //        Kj, /*transB=*/true, 
                     //        Sij, _Br, _Bc, d);
-                    // matrix_mul_cuda(Qi.data(),Kj.data(),Sij.data(), _Br, _Bc, d)
+                    
+                    trans01_matrix_mul_cuda(Qi.data(),Kj.data(),Sij.data(), _Br, _Bc, d);
+                    // general_mul_cuda(Qi.data(),false,Kj.data(),true,Sij.data(), _Br, _Bc, d);
 
                     // Pij = exp(Sij)
                     for (int ir = 0; ir < _Br; ir++)
