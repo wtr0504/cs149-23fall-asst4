@@ -156,7 +156,7 @@ void general_mul_cuda(float* x,bool transX, float * y,bool transY, float* z, int
   // matrix_mul <<<blocks, threads>>>(d_x, d_y, d_z, m, n, l);
 
   // dim3 blocks(m);
-  // dim3 threads(32,32);
+  // dim3 threads(1024);
   // matrix_mul_1 <<<blocks, threads>>>(d_x, d_y, d_z, m, n, l);
   dim3 threadsPerBlock(32, 32);
   dim3 numBlocks((n + threadsPerBlock.x - 1) / threadsPerBlock.x, (m + threadsPerBlock.y - 1) / threadsPerBlock.y);
