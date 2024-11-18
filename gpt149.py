@@ -25,14 +25,17 @@ print(cuda_path)
 
 print("\nCompiling code into a PyTorch module...\n\n")
 
+# print("\nCompiling code into a PyTorch module...\n\n")
+# mr = load(name="custom_module", sources=["module.cpp"],  extra_cflags=["-mavx", "-O3", "-fopenmp"], extra_ldflags=[ispc_path])
     
     
-mr = load(name="custom_module", sources=["module.cpp"],  extra_cflags=["-mavx","-O3",  "-fopenmp ", " -fPIC"], extra_ldflags=[cuda_path,ispc_path])
+mr = load(name="custom_module", sources=["module.cpp"],  extra_cflags=["-mavx","-O3",  "-fopenmp ", " -fPIC"], extra_ldflags=[cuda_path])
 correctness_error_message = "\n-------------------------------------------\n YOUR ATTENTION PRODUCED INCORRECT RESULTS"
 
 class CustomAttention(nn.Module):
     def __init__(self, Q,K,V, B, H, N, d, isRef=False, bc=256, br=256):
         super(nn.Module, self).__init__()
+        self.a = 1
         self.Q=Q
         self.K=K
         self.V=V
@@ -175,10 +178,10 @@ def testTemplate(customFunc, params, test_key):
             manual_time = end - start
     
     assert torch.allclose(QKV,QKS1, atol=1e-4), correctness_error_message
-    print("manual attention == pytorch attention",torch.allclose(QKV,QKS1, atol=1e-4)) 
+    # print("manual attention == pytorch attention",torch.allclose(QKV,QKS1, atol=1e-4)) 
     #print("Pytorch Execution Time:", pytorch_time, "\n")
-    print("Manual Execution Time: ", manual_time, "\n")
-    print(prof.key_averages().table(sort_by="cpu_memory_usage", row_limit=10))    
+    # print("Manual Execution Time: ", manual_time, "\n")
+    # print(prof.key_averages().table(sort_by="cpu_memory_usage", row_limit=10))    
     r = prof.key_averages()
     for rr in r:
         if rr.key == test_key:
@@ -186,6 +189,7 @@ def testTemplate(customFunc, params, test_key):
             print (test_key+ " statistics")
             print("cpu time: ", str(cpu_time / 1000.0) + "ms")
             print("mem usage: ", mem_usage, "bytes")
+            return cpu_time
 
 def part0Test(N, d, B, H):
     print("Running part 0 test: Pytorch Matmul + Softmax")
@@ -249,7 +253,19 @@ def part4Test(N, d, B, H, bc, br):
     testTemplate(attentionModuleStudent.myFlashAttention, params, "REFERENCE - FLASH ATTENTION")
     time.sleep(3)
     print("-----RUNNING STUDENT IMPLEMENTATION-----\n")
-    testTemplate(attentionModuleReference.myFlashAttention, params, "STUDENT - FLASH ATTENTION")
+    
+    sum = 0
+    num = 10
+    while (num > 0):
+        print("loop",str(num) +" times")
+        tmp = testTemplate(attentionModuleReference.myFlashAttention, params, "STUDENT - FLASH ATTENTION")
+        if(num != 10): 
+            sum += tmp
+        num -=1; 
+    print("average time ",str(sum/10 / 1000.0)+"ms")
+    # no padding : 224.3751
+    # padding : 187.3237
+    # transA no conflict : 204.824
 
 def accessTest(B, H, N, d):
     Q,_ ,_ = createQKVSimple(N,d,B,H)

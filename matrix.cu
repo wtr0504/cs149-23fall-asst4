@@ -116,17 +116,17 @@ void trans01_matrix_mul_cuda(float* x, float * y, float* z, int m, int n, int l)
   cudaMemcpy((void*)d_y, (void*)y, n*l*sizeof(float), cudaMemcpyHostToDevice);
   cudaMemcpy((void*)d_z, (void*)z, m*n*sizeof(float), cudaMemcpyHostToDevice);
 
-  // dim3 blocks(m);
-  // dim3 threads(32,32);
-  // trans01_matrix_mul <<<blocks, threads, sizeof(float)*l>>>(d_x, d_y, d_z, m, n, l);
+  dim3 blocks(m);
+  dim3 threads(32,32);
+  trans01_matrix_mul <<<blocks, threads, sizeof(float)*l>>>(d_x, d_y, d_z, m, n, l);
   // 将device得到的结果拷贝到host
 
-  int bx = (m + threadnx - 1) / threadnx;
-  int by = (n + threadnx - 1) / threadnx;
-  dim3 blocks(bx, by);
-  dim3 threads(threadnx, threadnx);
+  // int bx = (m + threadnx - 1) / threadnx;
+  // int by = (n + threadnx - 1) / threadnx;
+  // dim3 blocks(bx, by);
+  // dim3 threads(threadnx, threadnx);
+  // // trans01_matrix_mul_1<<<blocks, threads>>>(d_x, d_y, d_z, m, n, l);
   // trans01_matrix_mul_1<<<blocks, threads>>>(d_x, d_y, d_z, m, n, l);
-  trans01_matrix_mul_2<<<blocks, threads>>>(d_x, d_y, d_z, m, n, l);
 
   cudaMemcpy((void*)z, (void*)d_z, m*n*sizeof(float), cudaMemcpyDeviceToHost);
 
@@ -173,8 +173,7 @@ void general_mul_cuda(float* x,bool transX, float * y,bool transY, float* z, int
   cudaFree(d_z);
 }
 
-
-__global__ void matrix_mul_3(float* x, float * y, float* z, int m, int n, int l){
+__global__ void matrix_mul_3_v2(float* x, float * y, float* z, int m, int n, int l){
   __shared__ float matA[threadnx][threadnx];
   __shared__ float matB[threadnx][threadnx];
   const int tidr = threadIdx.x;
@@ -183,7 +182,42 @@ __global__ void matrix_mul_3(float* x, float * y, float* z, int m, int n, int l)
   const int bidc = blockIdx.y * threadnx;
   double results = 0.0;
 
-  for(int j = 0; j < l; j += threadnx) {
+  for(int j = 0;j < l;j += threadnx){
+    if(bidr + tidr < m && tidc + j < l) {
+      matA[tidc][tidr] = x[(tidr + bidr) * l + tidc + j];
+    } else {
+      matA[tidc][tidr] = 0.0;
+    }
+
+    if(tidr + j < l && bidc + tidc < n) {
+      matB[tidr][tidc] = y[(tidr + j) * n + bidc + tidc];
+      // matB[tidr][tidc] = y[(j + tidc) * n + tidr + bidr];
+    } else {
+      matB[tidr][tidc] = 0.0;
+    }
+    __syncthreads();
+
+    for(int i = 0; i < threadnx; i++) {
+      results += matA[i][tidr] * matB[i][tidc];
+    }
+    __syncthreads();
+  }
+  if(tidr + bidr < m && tidc + bidc < n) {
+    z[(tidr + bidr)*n + tidc + bidc] += results;
+  }
+}
+
+
+__global__ void matrix_mul_3(float* x, float * y, float* z, int m, int n, int l){
+  __shared__ float matA[threadnx][threadnx + 2];//bank conflict
+  __shared__ float matB[threadnx][threadnx];
+  const int tidr = threadIdx.x;
+  const int tidc = threadIdx.y;
+  const int bidr = blockIdx.x * threadnx;
+  const int bidc = blockIdx.y * threadnx;
+  double results = 0.0;
+
+  for(int j = 0; j < l; j += threadnx) {//A的行和B的列
     if(bidr + tidr < m && tidc + j < l) {
       matA[tidr][tidc] = x[(tidr + bidr) * l + tidc + j];
     } else {
@@ -197,7 +231,7 @@ __global__ void matrix_mul_3(float* x, float * y, float* z, int m, int n, int l)
     }
 
     __syncthreads();
-    
+    // #pragma unroll
     for(int i = 0; i < threadnx; i++) {
       results += matA[tidr][i] * matB[i][tidc];
     }
@@ -274,8 +308,8 @@ __global__ void trans01_matrix_mul_2(float* x, float * y, float* z, int m, int n
     // for(int i = 0; i < threadnx ; i++){
     //   results += matA[tidr][i] * matB[tidr][i];
     // }
-    // if()
-    // matT[tidr][tidc] = matA[tidr][tidc] * matB[tidr][tidc];
+    if(tidr + bidr < m && tidc + bidc < n)
+      matT[tidr][tidc] = matA[tidr][tidc] * matB[tidr][tidc];
     // TODO 错误的并行 why？
 
     for(int i = 0; i < threadnx ; i++){
@@ -289,6 +323,7 @@ __global__ void trans01_matrix_mul_2(float* x, float * y, float* z, int m, int n
     z[(tidr + bidr) * n + tidc + bidc] += results;
   }
 }
+
 
 
 void matrix_mul_cuda(float* x, float * y, float* z, int m, int n, int l){
@@ -309,18 +344,18 @@ void matrix_mul_cuda(float* x, float * y, float* z, int m, int n, int l){
   // dim3 blocks(m*n-1024+1/1024);
   // matrix_mul <<<blocks, threads>>>(d_x, d_y, d_z, m, n, l);
 
-  dim3 blocks(m);
-  dim3 threads(1024);
+  // dim3 blocks(m);
+  // dim3 threads(1024);
   // matrix_mul_1 <<<blocks, threads>>>(d_x, d_y, d_z, m, n, l);
-  matrix_mul_2 <<<blocks, threads, sizeof(float)*l>>>(d_x, d_y, d_z, m, n, l);
+  // matrix_mul_2 <<<blocks, threads, sizeof(float)*l>>>(d_x, d_y, d_z, m, n, l);
 
-  // int bx = (m + threadnx - 1) / threadnx;
-  // int by = (n + threadnx - 1) / threadnx;
-  // dim3 blocks(bx, by);
-  // dim3 threads(threadnx, threadnx);
+  int bx = (m + threadnx - 1) / threadnx;
+  int by = (n + threadnx - 1) / threadnx;
+  dim3 blocks(bx, by);
+  dim3 threads(threadnx, threadnx);
 
+  matrix_mul_3_v2 <<<blocks, threads>>>(d_x, d_y, d_z, m, n, l);
   // matrix_mul_3 <<<blocks, threads>>>(d_x, d_y, d_z, m, n, l);
-
 
   // 将device得到的结果拷贝到host
   cudaMemcpy((void*)z, (void*)d_z, m*n*sizeof(float), cudaMemcpyDeviceToHost);
